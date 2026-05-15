@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-aviation: #007AFF; /* iOS Standard Blue */
+  --color-aviation-dark: #0056b3;
+  --color-offwhite: #F2F2F7; /* iOS System Grouped Background */
+  --color-surface: #FFFFFF;
+  --color-oledblack: #000000;
+  --font-sans: "-apple-system", "BlinkMacSystemFont", "SF Pro Display", "SF Pro Text", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+}
+
+:root {
+  color-scheme: light; /* Force light mode default */
+}
+
+body {
+  @apply bg-offwhite text-gray-900 antialiased selection:bg-aviation/20;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  letter-spacing: -0.015em; /* iOS-like tight tracking */
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .glass-panel {
+    @apply bg-white/75 backdrop-blur-[32px] border border-white/40 shadow-[0_-4px_24px_rgba(0,0,0,0.02)];
+  }
+}
+
+.markdown-body {
+  @apply text-gray-800 text-[15px] md:text-[16px] leading-relaxed;
+}
+
+.markdown-body h1 {
+  @apply text-2xl font-bold mt-8 mb-4 tracking-tight;
+}
+
+.markdown-body h2 {
+  @apply text-xl font-bold mt-8 mb-4 pb-2 border-b border-gray-100 tracking-tight;
+}
+
+.markdown-body h3 {
+  @apply text-lg font-semibold mt-6 mb-3;
+}
+
+.markdown-body p {
+  @apply mb-4 leading-relaxed;
+}
+
+.markdown-body ul {
+  @apply list-disc pl-5 mb-4 space-y-2;
+}
+
+.markdown-body mt-4 {
+  @apply mt-4;
+}
+
+.markdown-body strong {
+  @apply font-bold text-gray-900;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full hover:bg-gray-400 transition-colors;
+}

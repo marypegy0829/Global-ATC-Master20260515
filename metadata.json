@@ -1,0 +1,6 @@
+{
+  "name": "Remix: Global ATC Master",
+  "description": "A minimalist, mobile-first PWA for ATC resolution and simulation, featuring a modern Apple/Samsung inspired UI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

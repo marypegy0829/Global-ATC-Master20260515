@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/200.svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a66c2"/>
+      <stop offset="100%" stop-color="#0c4a6e"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Background with rounded corners for mobile app look -->
+  <rect width="1024" height="1024" rx="225" fill="url(#bgGradient)"/>
+  
+  <!-- Abstract Radar/Radio Waves -->
+  <g stroke="#60a5fa" stroke-width="35" fill="none" stroke-linecap="round" opacity="0.6">
+    <path d="M 230 750 Q 150 600 230 450" />
+    <path d="M 150 820 Q 50 600 150 380" />
+    <path d="M 794 750 Q 874 600 794 450" />
+    <path d="M 874 820 Q 974 600 874 380" />
+  </g>
+
+  <!-- Commercial Airplane Silhouette -->
+  <g fill="#ffffff" filter="url(#shadow)">
+    <!-- Main fuselage -->
+    <path d="M 512 200 C 480 200, 460 300, 460 400 L 460 700 C 460 750, 490 800, 512 800 C 534 800, 564 750, 564 700 L 564 400 C 564 300, 544 200, 512 200 Z" />
+    <!-- Main wings -->
+    <path d="M 460 480 L 150 630 L 150 680 L 460 580 Z" />
+    <path d="M 564 480 L 874 630 L 874 680 L 564 580 Z" />
+    <!-- Tail wings -->
+    <path d="M 460 720 L 350 780 L 350 800 L 460 760 Z" />
+    <path d="M 564 720 L 674 780 L 674 800 L 564 760 Z" />
+    <!-- Cockpit window -->
+    <path d="M 512 250 M 490 280 C 490 260, 500 260, 512 260 C 524 260, 534 260, 534 280 L 490 280 Z" fill="#93c5fd" />
+  </g>
+
+  <!-- Central Ground Station Tower Dot -->
+  <circle cx="512" cy="850" r="30" fill="#38bdf8" />
+  <circle cx="512" cy="850" r="15" fill="#f0f9ff" />
+</svg>
