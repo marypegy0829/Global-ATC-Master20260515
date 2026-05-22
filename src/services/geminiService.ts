@@ -117,7 +117,7 @@ ${cbtaReport ? `
     base64AudioFiles.forEach((file) => {
       parts.push({
         inlineData: {
-          data: file.base64,
+          data: file.base64.includes(',') ? file.base64.split(',')[1] : file.base64,
           mimeType: file.mimetype
         }
       });
@@ -253,3 +253,170 @@ ${cbtaReport ? `
   );
 }
 
+
+export async function analyzeECORecording(params: AnalyzeATCParams, signal?: AbortSignal) {
+  const { countryCode, aircraftType, userPersona, outputMode, base64AudioFiles, uploadedFiles, audioFilesFromUrls = [], cbtaReport = false, assessmentTarget = "ATC" } = params;
+
+  if ((!base64AudioFiles || base64AudioFiles.length === 0) && (!uploadedFiles || uploadedFiles.length === 0) && audioFilesFromUrls.length === 0) {
+    throw new Error('No audio source provided. Supply files or URLs.');
+  }
+
+  const systemInstruction = `
+# 角色设定 
+你是一名精通 ICAO 9835 与 ICAO 4444 标准的资深飞行品质监控（FOQA）专家及航线教员。你的任务是对传入的 ATC 陆空通话文本/录音进行严谨、客观的数据拆解与风险定级。你的分析必须极度精确，遵循“简洁至上、深度分析、事实为本”的原则。坚决不使用任何主观感觉或加权平均，一切结论均需由底层数据推导得出。全程使用简体中文输出。
+
+# 核心评估基准（绝对阈值） 
+请严格根据以下客观阈值进行色彩定级： 
+1. 语速偏离（WPM，注意：一个完整的航班呼号强行计为 1 个单词） 
+- ≤100：绿色 (Green)
+- 101-130：蓝色 (Blue)
+- 131-160：黄色 (Yellow)
+- 161-190：橙色 (Orange)
+- ≥190：红色 (Red)
+
+2. 标准用语偏离（该管制员非标准用语次数 ÷ 该管制员总发话句数 = 非标占比） 
+- 0%：绿色 (Green)
+- 1-10%：蓝色 (Blue)
+- 11-20%：黄色 (Yellow)
+- 21-30%：橙色 (Orange)
+- ≥30%：红色 (Red)
+
+3. 发音偏离（基于雅思口语评分标准，评估清晰度、连读与吞音） 
+- ≥6分：绿色 (Green)
+- 5分：蓝色 (Blue)
+- ≤4分：橙色 (Orange)
+
+# 执行逻辑引擎（务必严格遵循以下 3 步） 
+## Step 1: 全局事实数据精准清点 (Data Extraction) 
+- 语速计算：精准统计每个管制员的总发话单词数（遵循呼号=1词规则），除以其累计发话时长（分钟），得出唯一的全局平均 WPM。
+- 用语清点：逐句比对 ICAO 4444 陆空通话标准，精确清点非标准用语的出现次数，计算出数学占比。
+- 发音锚定：根据语音文本中的吞音、重音错位等特征，给出对应的雅思预估分。
+
+## Step 2: 独立维度色彩映射 (Dimension Mapping) 
+将 Step 1 得出的绝对数据，严格代入“核心评估基准”，得出三个独立维度的风险颜色。
+
+## Step 3: TEM 底线锁定总评 (TEM Bottom-line Resolution) 
+- 木桶原理：管制员的最终综合风险等级，绝对等于其三个维度中风险最高（颜色最深）的那个等级。（绿<蓝<黄<橙<红）
+- 逻辑释义：安全防线由最薄弱的环节决定。若语速为绿色，发音为绿色，但非标用语为橙色，则该管制员最终风险即为“橙色”。拒绝用优秀维度掩盖致命威胁。
+
+# 输出格式限制 
+请采用极简、克制又层次分明的设计风格输出 Markdown 报告，整体报告字数控制在 1500-2000 字左右。
+为了在网页和导出的 Word/PDF 中兼顾美观，请遵守以下排版规范：
+- 添加直观的 Emoji 图标作为段落或标题的修饰（如 📊, ⚠️, 🎙️ 等）。
+- 不同风险等级请携带对应的颜色圆点标识，如 🟢绿色、🔵蓝色、🟨黄色、🟧橙色、🔴红色。
+
+## 格式要求：
+### 📊 1. ATC 风险分级事实数据表 (Risk Matrix)
+必须严格使用标准的 Markdown 表格结构，确保 Word 导出能正确识别：
+| 管制席位 | 全局语速 (WPM) | 语速等级 | 非标用语占比 (%) | 用语等级 | 雅思发音预估 | 发音等级 | 最终综合风险 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| (席位名称) | (数值) | 🟢/🔴等 (区间) | (数值)% | (对应等级) | (数值)分 | (对应等级) | **(对应最高风险)** |
+
+### ⚠️ 2. 核心偏差事实清单 (SOP Deviations)
+使用分级列表和清晰的段落结构：
+#### 🎙️ [标准用语偏离]
+1. **采样1：** \`原话文本\`  
+   > 🚩 **标准对照及运行威胁：** (详细分析漏洞与风险)
+2. **采样2：** \`原话文本\`  
+   > 🚩 **标准对照及运行威胁：** (详细分析漏洞与风险)
+
+*(请对“语速偏离”、“标准用语偏离”、“发音偏离”分别列出偏差清单，每个维度至少3个采样点，不足请说明)*
+`.trim();
+
+
+  const promptText = `请对附带的音频序列进行转录和事实清单提取。要求输出模式倾向于: ${outputMode === 'bilingual' ? '中英双语' : '纯英文'}`;
+
+  const parts: any[] = [{ text: promptText }];
+  
+  if (base64AudioFiles && base64AudioFiles.length > 0) {
+    base64AudioFiles.forEach((file) => {
+      parts.push({ inlineData: { data: file.base64.includes(',') ? file.base64.split(',')[1] : file.base64, mimeType: file.mimetype } });
+    });
+  }
+  
+  if (uploadedFiles && uploadedFiles.length > 0) {
+    uploadedFiles.forEach((file) => {
+      parts.push({ fileData: { fileUri: file.fileUri, mimeType: file.mimeType } });
+    });
+  }
+  
+  if (!base64AudioFiles?.length && !uploadedFiles?.length && audioFilesFromUrls.length > 0) {
+    parts.push({ text: `[Audio URLs to Transcribe]: ${audioFilesFromUrls.join('\n')}` });
+  }
+
+  const schemaWithoutReport: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      segments: {
+        type: Type.ARRAY,
+        description: "List of transcribed ATC segments.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            sequence_order: { type: Type.NUMBER, description: "Sequence order of the audio, 1-10." },
+            raw_text: { type: Type.STRING, description: "Raw English transcription. Use <Inferred: text> for inferred content." },
+            translated_text: { type: Type.STRING, description: "Chinese translation of the transcription." },
+            inferred_flags: { type: Type.BOOLEAN, description: "True if there is any inferred text." }
+          },
+          required: ["sequence_order", "raw_text", "translated_text", "inferred_flags"]
+        }
+      }
+    },
+    required: ["segments"]
+  };
+
+  const schemaWithReport: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      segments: {
+        type: Type.ARRAY,
+        description: "List of transcribed ATC segments.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            sequence_order: { type: Type.NUMBER, description: "Sequence order of the audio, 1-10." },
+            raw_text: { type: Type.STRING, description: "Raw English transcription. Use <Inferred: text> for inferred content." },
+            translated_text: { type: Type.STRING, description: "Chinese translation of the transcription." },
+            inferred_flags: { type: Type.BOOLEAN, description: "True if there is any inferred text." }
+          },
+          required: ["sequence_order", "raw_text", "translated_text", "inferred_flags"]
+        }
+      },
+      report_markdown: {
+        type: Type.STRING,
+        description: "The ECO FOQA report formatted precisely in Markdown according to the exact structure specified in the prompt."
+      },
+      report_title: {
+        type: Type.STRING,
+        description: "A concise and professional title for the report, e.g. FOQA Data Analysis - ZGGG TWR."
+      }
+    },
+    required: ["segments", "report_markdown", "report_title"]
+  };
+
+  const schemaInstructions = `
+    输出要求：
+    你必须且只能返回合法的 JSON 格式。返回数据必须严格符合以下结构，不要多余和缺少字段，也不要使用 markdown code block:
+    {
+      "segments": [
+        {
+          "sequence_order": (数字),
+          "raw_text": "推演部分用 <Inferred: ...> 包包裹",
+          "translated_text": "...",
+          "inferred_flags": (布尔值)
+        }
+      ],
+      "report_markdown": "这里填入严格按照指定的结构输出的完整Markdown评测报告，注意转义换行符等",
+      "report_title": "这里填入报告标题（例如：FOQA数据分析 - 某某塔台）"
+    }
+  `;
+
+  console.log("Calling Gemini API for ECO...");
+
+  return await geminiManager.generateContent<any>(
+    parts,
+    systemInstruction + schemaInstructions,
+    undefined,
+    signal
+  );
+}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { analyzeATCRecording } from '../services/geminiService';
+import { analyzeATCRecording, analyzeECORecording } from '../services/geminiService';
 import { geminiManager } from '../services/geminiManager';
 import { useRecordStore } from '../store/useRecordStore';
 
@@ -53,7 +53,8 @@ export function useTranscription() {
     userPersona: string,
     outputMode: string,
     cbtaReport: boolean,
-    assessmentTarget: "PILOT" | "ATC" = "ATC"
+    assessmentTarget: "PILOT" | "ATC" = "ATC",
+    pageMode: "WORKBENCH" | "ECO" = "WORKBENCH"
   ) => {
     setIsLoading(true);
     setError(null);
@@ -129,7 +130,13 @@ export function useTranscription() {
         assessmentTarget,
       };
 
-      const data = await analyzeATCRecording(payload, signal);
+      let data;
+      if (pageMode === 'ECO') {
+        data = await analyzeECORecording(payload as any, signal);
+      } else {
+        data = await analyzeATCRecording(payload as any, signal);
+      }
+
       const parsedData = data as TranscriptionResult;
       
       const targetStr = assessmentTarget === 'PILOT' ? '飞行员' : '管制员';
@@ -141,13 +148,51 @@ export function useTranscription() {
       
       setResultData(parsedData);
       
-      useRecordStore.getState().addRecord({
-        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
-        title: parsedData.report_title,
-        date: Date.now(),
-        isFavorite: false,
-        result: parsedData
-      });
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+      const recordId = generateUUID();
+      
+      try {
+        useRecordStore.getState().addRecord({
+          id: recordId,
+          title: parsedData.report_title || '未命名报告',
+          date: Date.now(),
+          isFavorite: false,
+          result: parsedData
+        });
+      } catch (err) {
+        console.error("Failed to save record to local store:", err);
+      }
+
+      // Try to save to Supabase if authenticated
+      try {
+        const { supabase } = await import('../services/supabaseClient');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.from('records').insert([{
+            id: recordId.length === 36 ? recordId : undefined, // UUID constraint in DB
+            user_id: session.user.id,
+            title: parsedData.report_title || '未命名报告',
+            country: countryCode,
+            aircraft_type: aircraftType,
+            user_persona: userPersona,
+            output_mode: outputMode,
+            assessment_target: assessmentTarget,
+            cbta_report: !!parsedData.cbta_report,
+            result_data: parsedData,
+          }]);
+        }
+      } catch (err) {
+        console.error("Failed to sync record to Supabase:", err);
+      }
     } catch (err: any) {
       console.error("TRANSCRIPTION ERROR CAUGHT:", err);
       if (err.name === 'AbortError') {

@@ -1,33 +1,36 @@
 import { marked } from 'marked';
 import { generateDocxBlob } from './docxUtils';
 
-export const generateReportHtml = (resultData: any, outputMode: string) => {
+export const generateReportHtml = (resultData: any, outputMode: string, pageMode: 'ECO' | 'WORKBENCH' = 'WORKBENCH') => {
   const renderInferredText = (text: string) => {
     return text.replace(/<Inferred:([^>]+)>/g, "<span class='inferred'>[$1]</span>");
   };
 
-  let segmentsHtml = resultData.segments.map((seg: any, index: number) => {
-    const role = index % 2 === 0 ? 'ATC' : 'PILOT';
-    const timePrefix = `00:${(index * 5).toString().padStart(2, '0')}`;
-    const roleColor = role === 'ATC' ? '#1f2937' : '#0a66c2';
-    const bgColor = role === 'ATC' ? '#f9fafb' : '#f0f7ff';
-    const borderLeft = `4px solid ${roleColor}`;
+  let segmentsHtml = '';
+  if (pageMode === 'WORKBENCH' && resultData.segments) {
+    segmentsHtml = resultData.segments.map((seg: any, index: number) => {
+      const role = index % 2 === 0 ? 'ATC' : 'PILOT';
+      const timePrefix = `00:${(index * 5).toString().padStart(2, '0')}`;
+      const roleColor = role === 'ATC' ? '#1f2937' : '#0a66c2';
+      const bgColor = role === 'ATC' ? '#f9fafb' : '#f0f7ff';
+      const borderLeft = `4px solid ${roleColor}`;
 
-    return `
-      <div class="segment" style="border-left: ${borderLeft}; background-color: ${bgColor};">
-        <div class="segment-header" style="color: ${roleColor};">
-          <strong>${timePrefix} • ${role}</strong>
+      return `
+        <div class="segment" style="border-left: ${borderLeft}; background-color: ${bgColor};">
+          <div class="segment-header" style="color: ${roleColor};">
+            <strong>${timePrefix} • ${role}</strong>
+          </div>
+          <div class="segment-body">
+            <p class="english-text">${renderInferredText(seg.raw_text)}</p>
+            ${outputMode === 'bilingual' ? `<p class="chinese-text">${seg.translated_text}</p>` : ''}
+          </div>
         </div>
-        <div class="segment-body">
-          <p class="english-text">${renderInferredText(seg.raw_text)}</p>
-          ${outputMode === 'bilingual' ? `<p class="chinese-text">${seg.translated_text}</p>` : ''}
-        </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
+  }
 
   let cbtaHtml = '';
-  if (resultData.cbta_report && resultData.cbta_report.scores) {
+  if (pageMode === 'WORKBENCH' && resultData.cbta_report && resultData.cbta_report.scores) {
     const r = resultData.cbta_report.scores;
     const scoresHtml = `
       <table class="score-table">
@@ -79,12 +82,14 @@ export const generateReportHtml = (resultData: any, outputMode: string) => {
         <p class="doc-meta">Generated Date: ${new Date().toLocaleDateString()}</p>
       </div>
 
+      ${pageMode === 'WORKBENCH' ? `
       <div class="section">
         <h2>Communication Transcript <span class="subtitle">/ 陆空通话记录</span></h2>
         <div class="transcript-container">
           ${segmentsHtml}
         </div>
       </div>
+      ` : ''}
 
       ${cbtaHtml}
     </div>
@@ -223,8 +228,37 @@ const commonStyles = `
   .markdown-body li {
     margin-bottom: 8px;
   }
-  .markdown-body strong {
-    color: #0f172a;
+  .markdown-body table {
+    width: 100%;
+    text-align: left;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+  .markdown-body th {
+    background-color: var(--bg-light);
+    padding: 10px 12px;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  .markdown-body td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-main);
+  }
+  .markdown-body tr:last-child td {
+    border-bottom: none;
+  }
+  .markdown-body blockquote {
+    border-left: 4px solid var(--accent);
+    background-color: #eff6ff;
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: var(--primary);
   }
   .score-section {
     margin-top: 50px;
@@ -288,7 +322,7 @@ const commonStyles = `
   }
 `;
 
-export const downloadAsPDF = async (resultData: any, outputMode: string, filename: string = 'ATC_Analysis_Report.pdf') => {
+export const downloadAsPDF = async (resultData: any, outputMode: string, filename: string = 'ATC_Analysis_Report.pdf', pageMode: 'ECO' | 'WORKBENCH' = 'WORKBENCH') => {
   if (typeof window === 'undefined' || !resultData) return;
   const html2pdf = (await import('html2pdf.js')).default;
   
@@ -296,7 +330,7 @@ export const downloadAsPDF = async (resultData: any, outputMode: string, filenam
   const container = document.createElement('div');
   container.innerHTML = `
     <style>${commonStyles}</style>
-    ${generateReportHtml(resultData, outputMode)}
+    ${generateReportHtml(resultData, outputMode, pageMode)}
   `;
   document.body.appendChild(container);
 
@@ -313,11 +347,11 @@ export const downloadAsPDF = async (resultData: any, outputMode: string, filenam
   document.body.removeChild(container);
 };
 
-export const downloadAsWord = async (resultData: any, outputMode: string, filename: string = 'ATC_Analysis_Report.docx') => {
+export const downloadAsWord = async (resultData: any, outputMode: string, filename: string = 'ATC_Analysis_Report.docx', pageMode: 'ECO' | 'WORKBENCH' = 'WORKBENCH') => {
   if (!resultData) return;
   
   try {
-    const blob = await generateDocxBlob(resultData, outputMode);
+    const blob = await generateDocxBlob(resultData, outputMode, pageMode);
     
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

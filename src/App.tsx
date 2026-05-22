@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { AnimatePresence } from "motion/react";
 import Layout from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PageTransition } from "./components/PageTransition";
+import { supabase } from "./services/supabaseClient";
+import { handleAutoOnboarding, syncUserRecords } from "./services/authService";
 
 const Home = lazy(() => import("./pages/Home"));
 const Training = lazy(() => import("./pages/Training"));
@@ -27,6 +29,26 @@ function AnimatedRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        await handleAutoOnboarding(session.user);
+        await syncUserRecords(session.user.id);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        await handleAutoOnboarding(session.user);
+        await syncUserRecords(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <ErrorBoundary>
       <BrowserRouter>

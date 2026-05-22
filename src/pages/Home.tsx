@@ -119,7 +119,7 @@ export default function Home() {
   const status = resultData ? 'completed' : isLoading ? 'transcribing' : error ? 'error' : 'idle';
 
   const MAX_FILES = 10;
-  const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
+  const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
   const VALID_TYPES = ['audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/m4a'];
 
   const showToast = (msg: string) => {
@@ -140,7 +140,7 @@ export default function Home() {
     
     const validFiles = fileArray.filter(file => {
       if (file.size > MAX_FILE_SIZE) {
-        showToast(`文件 ${file.name} 超过 30MB 限制`);
+        showToast(`文件 ${file.name} 超过 15MB 限制`);
         return false;
       }
       const isM4a = file.name.toLowerCase().endsWith('.m4a');
@@ -330,7 +330,17 @@ export default function Home() {
                  className="mt-8 pt-8 px-4"
               >
                 <div className="bg-white rounded-[32px] border border-gray-100 p-6 md:p-8 shadow-sm markdown-body">
-                  <ReactMarkdown>{resultData.report_markdown}</ReactMarkdown>
+                  <ReactMarkdown 
+                    components={{
+                      table: ({node, ...props}) => (
+                        <div className="table-wrapper">
+                          <table {...props} />
+                        </div>
+                      )
+                    }}
+                  >
+                    {resultData.report_markdown}
+                  </ReactMarkdown>
                 </div>
               </motion.div>
             )}
@@ -465,7 +475,7 @@ export default function Home() {
                 点击或拖拽上传 ATC 录音
               </h2>
               <p className="text-[14px] text-gray-500 font-medium">
-                支持最多 10 段序列，单文件最大 30MB / 30分钟
+                支持最多 10 段序列，单文件最大 15MB
               </p>
             </section>
 

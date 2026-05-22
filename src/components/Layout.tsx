@@ -5,7 +5,7 @@ import React from "react";
 
 const navItems = [
   { name: "工作台", path: "/", icon: Home },
-  { name: "训练中心", path: "/training", icon: Compass },
+  { name: "ECO", path: "/training", icon: Compass },
   { name: "模拟演练", path: "/sim", icon: Activity },
   { name: "设置", path: "/settings", icon: Settings },
 ];

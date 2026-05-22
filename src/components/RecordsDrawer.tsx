@@ -94,7 +94,7 @@ export function RecordsDrawer({
                       >
                         <div className="flex justify-between items-start mb-2">
                           <h3 className="font-semibold text-gray-900 pr-12 line-clamp-2">
-                            {record.title}
+                            {record.title || "未命名报告"}
                           </h3>
                           <div className="flex gap-1 absolute top-4 right-4">
                             <button

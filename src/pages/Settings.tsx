@@ -2,11 +2,13 @@ import { useAppStore } from "../store/useAppStore";
 import { 
   User, Plane, MapPin, Award, 
   Brain, Volume2, Layers, BookA, Mic, Ear, Users,
-  Palette, Type, Image as ImageIcon, Globe, ChevronRight
+  Palette, Type, Image as ImageIcon, Globe, ChevronRight, LogOut, LogIn, Mail, Lock
 } from "lucide-react";
 import { cn } from "../lib/utils";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { supabase } from "../services/supabaseClient";
+import { handleAutoOnboarding, syncUserRecords } from "../services/authService";
 
 function SettingsGroup({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
@@ -129,9 +131,107 @@ function SelectField({ value, onChange, options }: { value: string; onChange: (v
 
 export default function Settings() {
   const { userProfile, preferences, icaoPersona, updateUserProfile, updatePreferences, updateIcaoPersona } = useAppStore();
+  
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [session, setSession] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        await handleAutoOnboarding(session.user);
+        await syncUserRecords(session.user.id);
+      }
+      setIsAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      if (session) {
+        await handleAutoOnboarding(session.user);
+        await syncUserRecords(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setIsAuthLoading(true);
+    
+    const cleanEmail = authEmail.trim();
+    
+    const { error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: authPassword,
+    });
+    
+    if (error) {
+      let msg = error.message;
+      if (msg.includes("Invalid login credentials")) {
+        msg = "邮箱或密码错误，请检查您的输入 (Invalid login credentials)";
+      } else if (msg.includes("Email not confirmed")) {
+        msg = "邮箱未验证，请检查您的收件箱 (Email not confirmed)";
+      }
+      setAuthError(msg);
+    }
+    setIsAuthLoading(false);
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    
+    if (authPassword !== authConfirmPassword) {
+      setAuthError("两次输入的密码不一致 (Passwords do not match)");
+      return;
+    }
+    
+    setIsAuthLoading(true);
+    const cleanEmail = authEmail.trim();
+    
+    const { error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password: authPassword,
+      options: {
+        data: {
+          name: userProfile.name,
+          aircraft: userProfile.aircraft,
+          country: userProfile.country,
+          rank: userProfile.rank,
+        }
+      }
+    });
+    
+    if (error) {
+      let msg = error.message;
+      if (msg.includes("User already registered")) {
+        msg = "该邮箱已被注册，请直接登录 (User already registered)";
+      }
+      setAuthError(msg);
+    } else {
+      setAuthError("注册成功，请检查您的邮箱进行验证。如果已验证或无需验证，请直接登录。");
+    }
+    setIsAuthLoading(false);
+  };
+
+  const handleLogout = async () => {
+    setIsAuthLoading(true);
+    await supabase.auth.signOut();
+    setIsAuthLoading(false);
+  };
 
   return (
-    <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 h-full flex flex-col max-w-3xl mx-auto w-full">
+    <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 h-full flex flex-col max-w-3xl mx-auto w-full pb-12">
       <header className="mb-8 mt-4 md:mt-0">
         <h1 className="text-[2.2rem] md:text-[2.8rem] font-bold tracking-tight mb-2 text-gray-900 leading-tight">
           个人设置
@@ -141,7 +241,132 @@ export default function Settings() {
         </p>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-12 pr-1 -mr-1">
+      <div className="flex-1 overflow-y-auto pr-1 -mr-1 custom-scrollbar">
+      
+        {/* Auth Group */}
+        <SettingsGroup title="Account Integration (云端账户)">
+          {!session ? (
+            <div className="p-6">
+              <div className="flex bg-gray-100 p-[3px] rounded-[12px] mb-6 inline-flex">
+                <button
+                  onClick={() => setAuthMode('login')}
+                  className={cn(
+                    "px-6 py-2 text-[14px] font-semibold rounded-[10px] transition-all duration-200",
+                    authMode === 'login' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  登 录 (Login)
+                </button>
+                <button
+                  onClick={() => setAuthMode('register')}
+                  className={cn(
+                    "px-6 py-2 text-[14px] font-semibold rounded-[10px] transition-all duration-200",
+                    authMode === 'register' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  注 册 (Register)
+                </button>
+              </div>
+
+              <form className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                   <label className="text-sm font-semibold text-gray-700 ml-1">账 户 (Email)</label>
+                   <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input 
+                        type="email" 
+                        value={authEmail} 
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        placeholder="your@email.com" 
+                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-[14px] text-gray-900 outline-none focus:border-aviation focus:ring-2 focus:ring-aviation/20 transition-all"
+                      />
+                   </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                   <label className="text-sm font-semibold text-gray-700 ml-1">密 码 (Password)</label>
+                   <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input 
+                        type="password"
+                        value={authPassword} 
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        placeholder="••••••••" 
+                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-[14px] text-gray-900 outline-none focus:border-aviation focus:ring-2 focus:ring-aviation/20 transition-all"
+                      />
+                   </div>
+                </div>
+
+                <AnimatePresence>
+                  {authMode === 'register' && (
+                    <motion.div 
+                       initial={{ height: 0, opacity: 0 }}
+                       animate={{ height: "auto", opacity: 1 }}
+                       exit={{ height: 0, opacity: 0 }}
+                       className="flex flex-col gap-1.5 overflow-hidden"
+                    >
+                       <label className="text-sm font-semibold text-gray-700 ml-1 mt-1">确认密码 (Confirm Password)</label>
+                       <div className="relative">
+                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input 
+                            type="password"
+                            value={authConfirmPassword} 
+                            onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                            placeholder="••••••••" 
+                            className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-[14px] text-gray-900 outline-none focus:border-aviation focus:ring-2 focus:ring-aviation/20 transition-all"
+                          />
+                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {authError && <p className="text-sm text-red-500 mt-1 font-medium px-2">{authError}</p>}
+                
+                <div className="flex gap-3 mt-4">
+                  {authMode === 'login' ? (
+                    <button 
+                      disabled={isAuthLoading}
+                      onClick={handleLogin}
+                      className="w-full py-3.5 px-4 bg-aviation text-white rounded-[14px] font-bold text-[15px] hover:bg-aviation-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+                    >
+                      <LogIn className="w-5 h-5" /> 登 录
+                    </button>
+                  ) : (
+                    <button 
+                      disabled={isAuthLoading}
+                      onClick={handleSignUp}
+                      className="w-full py-3.5 px-4 bg-aviation text-white rounded-[14px] font-bold text-[15px] hover:bg-aviation-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+                    >
+                      <User className="w-5 h-5" /> 注册账号
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-aviation/10 text-aviation rounded-full flex items-center justify-center">
+                  <User className="w-6 h-6" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[18px] font-bold text-gray-900">{session.user.email}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-[13px] text-gray-500 font-medium uppercase tracking-wider">已连接 Supabase</span>
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={handleLogout}
+                disabled={isAuthLoading}
+                className="w-10 h-10 flex items-center justify-center hover:bg-red-50 text-red-500 rounded-full transition-colors active:scale-95"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+        </SettingsGroup>
+
         {/* Group 1: Profile & Identity */}
         <SettingsGroup title="Profile & Identity">
           <SettingsRow icon={User} iconColor="bg-blue-500" title="姓名 (Name)">

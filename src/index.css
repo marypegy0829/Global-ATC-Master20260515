@@ -66,6 +66,30 @@ body {
   @apply font-bold text-gray-900;
 }
 
+.markdown-body table {
+  @apply w-full text-left border-collapse my-6 text-[14px];
+}
+
+.markdown-body .table-wrapper {
+  @apply w-full overflow-x-auto rounded-[16px] border border-gray-200 shadow-sm mb-6 bg-white;
+}
+
+.markdown-body table th {
+  @apply bg-gray-50/80 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200 whitespace-nowrap;
+}
+
+.markdown-body table td {
+  @apply px-4 py-3 border-b border-gray-100 text-gray-800 align-middle whitespace-nowrap;
+}
+
+.markdown-body table tr:last-child td {
+  @apply border-b-0;
+}
+
+.markdown-body blockquote {
+  @apply border-l-4 border-blue-500 bg-blue-50/50 px-4 py-3 rounded-r-lg my-4 text-gray-700 font-medium italic;
+}
+
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;

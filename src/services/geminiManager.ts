@@ -58,18 +58,25 @@ export class GeminiManager {
     if (this.config.topP !== undefined) generateConfig.topP = this.config.topP;
     if (schema) generateConfig.responseSchema = schema;
 
-    const response = await ai.models.generateContent({
+    const responseStream = await ai.models.generateContentStream({
       model: this.config.modelName,
       contents: { parts },
       config: generateConfig
     });
 
-    const responseText = response.text;
-    if (!responseText) {
+    let fullText = '';
+    for await (const chunk of responseStream) {
+      if (signal?.aborted) {
+        throw new Error('AbortError');
+      }
+      fullText += chunk.text;
+    }
+
+    if (!fullText) {
       throw new Error('No valid output from Gemini model');
     }
 
-    return this.safeParseJSON<T>(responseText);
+    return this.safeParseJSON<T>(fullText);
   }
 
   private safeParseJSON<T>(text: string): T {
